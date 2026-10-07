@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Call Me! - Guest Broadcast Studio</title>
+  <!-- PeerJS CDN -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1218;
+      --card-bg: #1a1e28;
+      --accent: #00d2ff;
+      --accent-hover: #00b4db;
+      --danger: #ff3366;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --border: #2d3342;
+      --on-air: #ff0055;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 880px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+    }
+
+    /* HEADER: ENLARGED LOGO WITHOUT SEPARATE "CALL ME" TEXT */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+
+    .title-area {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-img {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 4px 16px rgba(0, 210, 255, 0.35);
+      border: 2px solid var(--accent);
+    }
+
+    .badge-on-air {
+      background: var(--on-air);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: none;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .video-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 680px) {
+      .video-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .video-box {
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      position: relative;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-label {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 5;
+    }
+
+    /* SEMI-TRANSPARENT MINI VU METERS OVERLAY AT BOTTOM OF MONITORS */
+    .monitor-audio-bar {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      background: rgba(20, 26, 36, 0.65);
+      backdrop-filter: blur(4px);
+      border-radius: 4px;
+      padding: 4px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      z-index: 5;
+    }
+
+    .monitor-audio-label {
+      font-size: 0.62rem;
+      font-family: 'Consolas', monospace;
+      font-weight: 700;
+      color: #94a3b8;
+      width: 28px;
+      white-space: nowrap;
+    }
+
+    .monitor-led-track {
+      flex: 1;
+      height: 6px;
+      background: rgba(10, 14, 22, 0.8);
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .monitor-led-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #00ff66 0%, #00ff66 70%, #ffcc00 85%, #ff2a2a 100%);
+      transition: width 0.05s ease-out;
+    }
+
+    /* DEVICE SELECTOR ROW */
+    .device-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+      background: #11141c;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    @media (max-width: 680px) {
+      .device-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .device-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .device-col label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .controls-panel {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    input, select {
+      background: #11141c;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.92rem;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      background: var(--accent);
+      color: #0b1017;
+      font-weight: 700;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 22px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+    }
+
+    button.hangup {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .info-bar {
+      background: #121620;
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #666;
+    }
+
+    .status-dot.connected {
+      background: #00ff88;
+      box-shadow: 0 0 8px #00ff88;
+    }
+
+    .status-dot.connecting {
+      background: #f7b731;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header: Doubled Logo without separate Call Me text -->
+    <div class="header">
+      <div class="title-area">
+        <img src="LogoCallMe_circle_white.png" class="logo-img" alt="Call Me!">
+        <span id="onAirBadge" class="badge-on-air">● ON AIR</span>
+      </div>
+      <div>
+        <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Guest Broadcast Client</span>
+      </div>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="video-grid">
+      <!-- Guest Camera -->
+      <div class="video-box">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <span class="video-label">Your Camera (Sending to Studio)</span>
+        <div class="monitor-audio-bar">
+          <span class="monitor-audio-label">MIC</span>
+          <div class="monitor-led-track"><div id="localMeterFill" class="monitor-led-fill"></div></div>
+        </div>
+      </div>
+
+      <!-- Studio Return Feed -->
+      <div class="video-box">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <span class="video-label">Studio Retorno (Mix-Minus)</span>
+        <div class="monitor-audio-bar">
+          <span class="monitor-audio-label">STUDIO</span>
+          <div class="monitor-led-track"><div id="remoteMeterFill" class="monitor-led-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Device Selectors & Audio Modes -->
+    <div class="device-row">
+      <div class="device-col">
+        <label for="cameraSelect">Camera Device</label>
+        <select id="cameraSelect" onchange="onCameraDeviceChanged()">
+          <option value="">Detecting cameras...</option>
+        </select>
+      </div>
+      <div class="device-col">
+        <label for="micSelect">Microphone Device</label>
+        <select id="micSelect" onchange="onMicDeviceChanged()">
+          <option value="">Detecting microphones...</option>
+        </select>
+      </div>
+      <div class="device-col" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; text-transform: none;">
+          <input type="checkbox" id="echoCancelToggle" onchange="onEchoCancelToggled()" style="width: auto; cursor: pointer;">
+          <span>Using Laptop Speakers (Enable Echo Cancellation)</span>
+        </label>
+        <span style="font-size: 0.72rem; color: var(--text-muted);">Tip: Use headphones for studio uncompressed audio</span>
+      </div>
+    </div>
+
+    <!-- Connect / Disconnect Bar -->
+    <div class="controls-panel">
+      <div class="input-group">
+        <input type="text" id="studioRoomId" placeholder="Studio Room ID (e.g. callme-studio-live)" value="callme-studio-live">
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="connectBtn" onclick="startCall()">Connect to Studio</button>
+        <button id="disconnectBtn" class="hangup" onclick="hangUp()" disabled>Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Telemetry Info Bar -->
+    <div class="info-bar">
+      <div>
+        <span>My Guest ID: </span><strong id="myPeerId" style="color: var(--accent);">Registering...</strong>
+      </div>
+      <div class="status-badge">
+        <div id="statusDot" class="status-dot"></div>
+        <span id="statusText">Camera Active</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let peer = null;
+    let localStream = null;
+    let activeCall = null;
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+    const myPeerIdEl = document.getElementById('myPeerId');
+    const onAirBadge = document.getElementById('onAirBadge');
+    const cameraSelect = document.getElementById('cameraSelect');
+    const micSelect = document.getElementById('micSelect');
+
+    // 1. Initialize Peer Broker
+    function initPeer() {
+      peer = new Peer({
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      });
+
+      peer.on('open', (id) => {
+        myPeerIdEl.innerText = id;
+        statusText.innerText = "Ready to connect";
+      });
+
+      peer.on('error', (err) => {
+        console.error("Peer error:", err);
+        statusText.innerText = "Error: " + err.type;
+        statusDot.className = "status-dot";
+      });
+
+      peer.on('call', async (incomingCall) => {
+        if (!localStream) await startCameraPreview();
+        activeCall = incomingCall;
+        incomingCall.answer(localStream);
+        setupCallHandlers(incomingCall);
+      });
+    }
+
+    // 2. Enumerate Cameras and Microphones into dropdowns
+    async function populateDeviceLists() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        cameraSelect.innerHTML = '';
+        micSelect.innerHTML = '';
+
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        const audioDevices = devices.filter(d => d.kind === 'audioinput');
+
+        videoDevices.forEach((dev, idx) => {
+          const opt = document.createElement('option');
+          opt.value = dev.deviceId;
+          opt.text = dev.label || `Camera ${idx + 1}`;
+          cameraSelect.appendChild(opt);
+        });
+
+        audioDevices.forEach((dev, idx) => {
+          const opt = document.createElement('option');
+          opt.value = dev.deviceId;
+          opt.text = dev.label || `Microphone ${idx + 1}`;
+          micSelect.appendChild(opt);
+        });
+
+        if (videoDevices.length === 0) {
+          cameraSelect.innerHTML = '<option value="">No camera detected</option>';
+        }
+        if (audioDevices.length === 0) {
+          micSelect.innerHTML = '<option value="">No microphone detected</option>';
+        }
+      } catch (err) {
+        console.warn("Could not enumerate devices:", err);
+      }
+    }
+
+    // 3. Start Camera Immediately on Page Load (Self-Confidence Monitor)
+    async function startCameraPreview(selectedCamId = null, selectedMicId = null) {
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+
+      const useEchoCancellation = document.getElementById('echoCancelToggle').checked;
+
+      const videoConstraints = selectedCamId 
+        ? { deviceId: { exact: selectedCamId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        : { width: { ideal: 1920 }, height: { ideal: 1080 } };
+
+      const audioConstraints = selectedMicId
+        ? { deviceId: { exact: selectedMicId }, echoCancellation: useEchoCancellation, noiseSuppression: useEchoCancellation, autoGainControl: false, sampleRate: 48000 }
+        : { echoCancellation: useEchoCancellation, noiseSuppression: useEchoCancellation, autoGainControl: false, sampleRate: 48000 };
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: audioConstraints
+        });
+        localVideo.srcObject = localStream;
+        setupLocalAudioMeter(localStream);
+        await populateDeviceLists();
+        return localStream;
+      } catch (err) {
+        console.warn("Retrying with fallback constraints:", err);
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          localVideo.srcObject = localStream;
+          setupLocalAudioMeter(localStream);
+          await populateDeviceLists();
+          return localStream;
+        } catch (e2) {
+          console.error("Camera access failed:", e2);
+          statusText.innerText = "Camera Blocked/Unavailable";
+        }
+      }
+    }
+
+    async function onEchoCancelToggled() {
+      const camId = cameraSelect.value;
+      const micId = micSelect.value;
+      await startCameraPreview(camId, micId);
+      replaceTracksInCall();
+    }
+
+    // Web Audio Analysers for Guest VU Meters
+    let audioCtx = null;
+    let localAnalyser = null;
+    let remoteAnalyser = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function setupLocalAudioMeter(stream) {
+      try {
+        if (!stream || stream.getAudioTracks().length === 0) return;
+        const ctx = getAudioContext();
+        const source = ctx.createMediaStreamSource(stream);
+        localAnalyser = ctx.createAnalyser();
+        localAnalyser.fftSize = 128;
+        source.connect(localAnalyser);
+
+        const data = new Uint8Array(localAnalyser.frequencyBinCount);
+        const fill = document.getElementById('localMeterFill');
+
+        function loop() {
+          if (!localAnalyser) return;
+          localAnalyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i];
+          const avg = sum / data.length;
+          const level = Math.min(100, Math.round((avg / 128) * 115));
+          if (fill) fill.style.width = level + '%';
+          requestAnimationFrame(loop);
+        }
+        loop();
+      } catch (e) {
+        console.warn("Could not start local audio meter:", e);
+      }
+    }
+
+    function setupRemoteAudioMeter(stream) {
+      try {
+        if (!stream || stream.getAudioTracks().length === 0) return;
+        const ctx = getAudioContext();
+        const source = ctx.createMediaStreamSource(stream);
+        remoteAnalyser = ctx.createAnalyser();
+        remoteAnalyser.fftSize = 128;
+        source.connect(remoteAnalyser);
+
+        const data = new Uint8Array(remoteAnalyser.frequencyBinCount);
+        const fill = document.getElementById('remoteMeterFill');
+
+        function loop() {
+          if (!remoteAnalyser) return;
+          remoteAnalyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i];
+          const avg = sum / data.length;
+          const level = Math.min(100, Math.round((avg / 128) * 115));
+          if (fill) fill.style.width = level + '%';
+          requestAnimationFrame(loop);
+        }
+        loop();
+      } catch (e) {
+        console.warn("Could not start remote audio meter:", e);
+      }
+    }
+
+    // Handlers when user chooses a different camera or microphone from dropdown
+    async function onCameraDeviceChanged() {
+      const camId = cameraSelect.value;
+      const micId = micSelect.value;
+      await startCameraPreview(camId, micId);
+      replaceTracksInCall();
+    }
+
+    async function onMicDeviceChanged() {
+      const camId = cameraSelect.value;
+      const micId = micSelect.value;
+      await startCameraPreview(camId, micId);
+      replaceTracksInCall();
+    }
+
+    function replaceTracksInCall() {
+      if (activeCall && activeCall.peerConnection && localStream) {
+        const senders = activeCall.peerConnection.getSenders();
+        const vTrack = localStream.getVideoTracks()[0];
+        const aTrack = localStream.getAudioTracks()[0];
+        if (vTrack) {
+          const vs = senders.find(s => s.track && s.track.kind === 'video');
+          if (vs) vs.replaceTrack(vTrack);
+        }
+        if (aTrack) {
+          const as = senders.find(s => s.track && s.track.kind === 'audio');
+          if (as) as.replaceTrack(aTrack);
+        }
+      }
+    }
+
+    // 4. Connect to Studio
+    async function startCall() {
+      const targetStudioId = document.getElementById('studioRoomId').value.trim();
+      if (!targetStudioId) {
+        alert("Please specify Studio Room ID");
+        return;
+      }
+
+      if (!localStream) {
+        await startCameraPreview();
+      }
+
+      statusText.innerText = "Calling Studio...";
+      statusDot.className = "status-dot connecting";
+
+      const call = peer.call(targetStudioId, localStream);
+      activeCall = call;
+      setupCallHandlers(call);
+
+      connectBtn.disabled = true;
+      disconnectBtn.disabled = false;
+    }
+
+    function setupCallHandlers(call) {
+      call.on('stream', (remoteStream) => {
+        remoteVideo.srcObject = remoteStream;
+        setupRemoteAudioMeter(remoteStream);
+        statusText.innerText = "ON AIR (Connected to Studio)";
+        statusDot.className = "status-dot connected";
+        onAirBadge.style.display = "inline-block";
+      });
+
+      call.on('close', () => hangUp());
+      call.on('error', (err) => {
+        console.error("Call error:", err);
+        hangUp();
+      });
+    }
+
+    function hangUp() {
+      if (activeCall) {
+        try { activeCall.close(); } catch(e){}
+        activeCall = null;
+      }
+      if (remoteVideo.srcObject) {
+        remoteVideo.srcObject.getTracks().forEach(t => t.stop());
+        remoteVideo.srcObject = null;
+      }
+      const remoteFill = document.getElementById('remoteMeterFill');
+      if (remoteFill) remoteFill.style.width = '0%';
+
+      statusText.innerText = "Call ended";
+      statusDot.className = "status-dot";
+      onAirBadge.style.display = "none";
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+    }
+
+    // Initialize on page load: start preview right away so the user sees themselves
+    window.addEventListener('DOMContentLoaded', async () => {
+      await startCameraPreview();
+      initPeer();
+    });
+  </script>
+</body>
+</html>
