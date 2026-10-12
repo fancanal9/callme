@@ -744,6 +744,22 @@
       call.on('stream', (remoteStream) => {
         remoteVideo.srcObject = remoteStream;
         setupRemoteAudioMeter(remoteStream);
+
+        // Mobile Chrome / Android: Ensure communication mode playout with low latency
+        try {
+          if (!window.remoteAudioEl) {
+            window.remoteAudioEl = new Audio();
+            window.remoteAudioEl.autoplay = true;
+            window.remoteAudioEl.playsInline = true;
+          }
+          window.remoteAudioEl.srcObject = remoteStream;
+          window.remoteAudioEl.play().catch(e => console.warn("Remote audio play:", e));
+          // Keep remoteVideo unmuted only if remoteAudioEl fails
+          remoteVideo.muted = true;
+        } catch(e) {
+          remoteVideo.muted = false;
+        }
+
         statusText.innerText = "ON AIR (Connected to Studio)";
         statusDot.className = "status-dot connected";
         onAirBadge.style.display = "inline-block";
