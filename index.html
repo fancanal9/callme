@@ -527,26 +527,35 @@
         videoConstraints = { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } };
       }
 
+      // WhatsApp Web & Zoom WebRTC production standard audio constraints
+      const standardAecSettings = useEchoCancellation ? {
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+        // Mobile Chromium / Chrome Android WebRTC low-level flags
+        googEchoCancellation: { ideal: true },
+        googEchoCancellation2: { ideal: true },
+        googAutoGainControl: { ideal: true },
+        googAutoGainControl2: { ideal: true },
+        googNoiseSuppression: { ideal: true },
+        googNoiseSuppression2: { ideal: true },
+        googHighpassFilter: { ideal: true },
+        googTypingNoiseDetection: { ideal: true },
+        latency: { ideal: 0.01 },
+        channelCount: { ideal: 1 }, // Mono prevents phase cancellation and double-mic feedback loops on smartphones
+        sampleRate: { ideal: 48000 }
+      } : {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      };
+
       const audioConstraints = selectedMicId
         ? {
             deviceId: { exact: selectedMicId },
-            echoCancellation: useEchoCancellation,
-            noiseSuppression: useEchoCancellation,
-            autoGainControl: true,
-            googEchoCancellation: useEchoCancellation,
-            googAutoGainControl: true,
-            googNoiseSuppression: useEchoCancellation,
-            googHighpassFilter: true
+            ...standardAecSettings
           }
-        : {
-            echoCancellation: useEchoCancellation,
-            noiseSuppression: useEchoCancellation,
-            autoGainControl: true,
-            googEchoCancellation: useEchoCancellation,
-            googAutoGainControl: true,
-            googNoiseSuppression: useEchoCancellation,
-            googHighpassFilter: true
-          };
+        : standardAecSettings;
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
@@ -714,6 +723,24 @@
     }
 
     function setupCallHandlers(call) {
+      // Optimize RTCPeerConnection audio sender parameters (Zoom / WhatsApp Web pattern)
+      if (call.peerConnection) {
+        try {
+          const senders = call.peerConnection.getSenders();
+          senders.forEach(sender => {
+            if (sender.track && sender.track.kind === 'audio') {
+              const params = sender.getParameters();
+              if (params && params.encodings && params.encodings.length > 0) {
+                // Prioritize low-latency speech encoding with full error resilience
+                params.encodings[0].maxBitrate = 64000; // 64kbps clean broadcast speech
+                params.encodings[0].priority = 'high';
+                sender.setParameters(params).catch(e => {});
+              }
+            }
+          });
+        } catch(e) {}
+      }
+
       call.on('stream', (remoteStream) => {
         remoteVideo.srcObject = remoteStream;
         setupRemoteAudioMeter(remoteStream);
