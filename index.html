@@ -118,7 +118,8 @@
     video {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
+      background: #000;
     }
 
     .video-label {
@@ -400,6 +401,11 @@
 
     // 1. Initialize Peer Broker
     function initPeer() {
+      if (peer) {
+        try { peer.destroy(); } catch(e){}
+        peer = null;
+      }
+
       peer = new Peer({
         config: {
           iceServers: [
@@ -411,13 +417,29 @@
 
       peer.on('open', (id) => {
         myPeerIdEl.innerText = id;
-        statusText.innerText = "Ready to connect";
+        statusText.innerText = "Ready to connect to Studio";
+      });
+
+      peer.on('disconnected', () => {
+        statusText.innerText = "Reconnecting to server...";
+        try { peer.reconnect(); } catch(e){}
       });
 
       peer.on('error', (err) => {
         console.error("Peer error:", err);
-        statusText.innerText = "Error: " + err.type;
+        if (err.type === 'peer-unavailable') {
+          statusText.innerText = "Studio is currently offline or registering. Please retry in a moment.";
+        } else if (err.type === 'network' || err.type === 'server-error') {
+          statusText.innerText = "Network reconnection... Retrying";
+          setTimeout(() => {
+            try { if (peer && !peer.destroyed) peer.reconnect(); } catch(e){}
+          }, 3000);
+        } else {
+          statusText.innerText = "Status: " + err.type;
+        }
         statusDot.className = "status-dot";
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
       });
 
       peer.on('call', async (incomingCall) => {
@@ -429,35 +451,45 @@
     }
 
     // 2. Enumerate Cameras and Microphones into dropdowns
-    async function populateDeviceLists() {
+    async function populateDeviceLists(currentCamId = null, currentMicId = null) {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         
-        cameraSelect.innerHTML = '';
-        micSelect.innerHTML = '';
-
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
         const audioDevices = devices.filter(d => d.kind === 'audioinput');
+
+        const activeCamVal = currentCamId || cameraSelect.value;
+        const activeMicVal = currentMicId || micSelect.value;
+
+        cameraSelect.innerHTML = '';
+        micSelect.innerHTML = '';
 
         videoDevices.forEach((dev, idx) => {
           const opt = document.createElement('option');
           opt.value = dev.deviceId;
-          opt.text = dev.label || `Camera ${idx + 1}`;
+          let label = dev.label || `Camera ${idx + 1}`;
+          opt.text = label;
           cameraSelect.appendChild(opt);
         });
 
         audioDevices.forEach((dev, idx) => {
           const opt = document.createElement('option');
           opt.value = dev.deviceId;
-          opt.text = dev.label || `Microphone ${idx + 1}`;
+          let label = dev.label || `Microphone ${idx + 1}`;
+          opt.text = label;
           micSelect.appendChild(opt);
         });
 
         if (videoDevices.length === 0) {
           cameraSelect.innerHTML = '<option value="">No camera detected</option>';
+        } else if (activeCamVal && videoDevices.some(d => d.deviceId === activeCamVal)) {
+          cameraSelect.value = activeCamVal;
         }
+
         if (audioDevices.length === 0) {
           micSelect.innerHTML = '<option value="">No microphone detected</option>';
+        } else if (activeMicVal && audioDevices.some(d => d.deviceId === activeMicVal)) {
+          micSelect.value = activeMicVal;
         }
       } catch (err) {
         console.warn("Could not enumerate devices:", err);
@@ -466,16 +498,34 @@
 
     // 3. Start Camera Immediately on Page Load (Self-Confidence Monitor)
     async function startCameraPreview(selectedCamId = null, selectedMicId = null) {
+      // Cleanly stop any existing stream tracks first so mobile browsers release camera lock
       if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
+        localStream.getTracks().forEach(t => {
+          try { t.stop(); } catch(e){}
+        });
         localStream = null;
       }
 
       const useEchoCancellation = document.getElementById('echoCancelToggle').checked;
 
-      const videoConstraints = selectedCamId 
-        ? { deviceId: { exact: selectedCamId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-        : { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      // Build video constraint with facingMode mobile awareness
+      let videoConstraints;
+      if (selectedCamId) {
+        // Find if user selected front vs back
+        const chosenOpt = Array.from(cameraSelect.options).find(o => o.value === selectedCamId);
+        const isBack = chosenOpt && /back|rear|trasera|environment/i.test(chosenOpt.text);
+        const isFront = chosenOpt && /front|selfie|frontal|user/i.test(chosenOpt.text);
+
+        if (isBack) {
+          videoConstraints = { deviceId: { exact: selectedCamId }, facingMode: { ideal: 'environment' } };
+        } else if (isFront) {
+          videoConstraints = { deviceId: { exact: selectedCamId }, facingMode: { ideal: 'user' } };
+        } else {
+          videoConstraints = { deviceId: { exact: selectedCamId } };
+        }
+      } else {
+        videoConstraints = { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } };
+      }
 
       const audioConstraints = selectedMicId
         ? { deviceId: { exact: selectedMicId }, echoCancellation: useEchoCancellation, noiseSuppression: useEchoCancellation, autoGainControl: false, sampleRate: 48000 }
@@ -488,15 +538,24 @@
         });
         localVideo.srcObject = localStream;
         setupLocalAudioMeter(localStream);
-        await populateDeviceLists();
+
+        // Get currently active video device ID from stream track
+        const activeTrack = localStream.getVideoTracks()[0];
+        const activeSettings = activeTrack ? activeTrack.getSettings() : {};
+        const activeDevId = activeSettings.deviceId || selectedCamId;
+
+        await populateDeviceLists(activeDevId, selectedMicId);
         return localStream;
       } catch (err) {
-        console.warn("Retrying with fallback constraints:", err);
+        console.warn("Retrying with relaxed camera constraints:", err);
         try {
-          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          const fallbackConstraints = selectedCamId 
+            ? { video: { deviceId: selectedCamId }, audio: true }
+            : { video: true, audio: true };
+          localStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
           localVideo.srcObject = localStream;
           setupLocalAudioMeter(localStream);
-          await populateDeviceLists();
+          await populateDeviceLists(selectedCamId, selectedMicId);
           return localStream;
         } catch (e2) {
           console.error("Camera access failed:", e2);
@@ -626,7 +685,7 @@
         await startCameraPreview();
       }
 
-      statusText.innerText = "Calling Studio...";
+      statusText.innerText = "Calling Studio (Ringing / Waiting for Operator)...";
       statusDot.className = "status-dot connecting";
 
       const call = peer.call(targetStudioId, localStream);
