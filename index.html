@@ -353,10 +353,10 @@
       </div>
       <div class="device-col" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.08);">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; text-transform: none;">
-          <input type="checkbox" id="echoCancelToggle" onchange="onEchoCancelToggled()" style="width: auto; cursor: pointer;">
-          <span>Using Laptop Speakers (Enable Echo Cancellation)</span>
+          <input type="checkbox" id="echoCancelToggle" onchange="onEchoCancelToggled()" checked style="width: auto; cursor: pointer;">
+          <span>Echo Cancellation & Noise Reduction (Recommended for Phones / Speakers)</span>
         </label>
-        <span style="font-size: 0.72rem; color: var(--text-muted);">Tip: Use headphones for studio uncompressed audio</span>
+        <span style="font-size: 0.72rem; color: var(--text-muted);">Uncheck only if using isolated studio headphones</span>
       </div>
     </div>
 
@@ -528,8 +528,25 @@
       }
 
       const audioConstraints = selectedMicId
-        ? { deviceId: { exact: selectedMicId }, echoCancellation: useEchoCancellation, noiseSuppression: useEchoCancellation, autoGainControl: false, sampleRate: 48000 }
-        : { echoCancellation: useEchoCancellation, noiseSuppression: useEchoCancellation, autoGainControl: false, sampleRate: 48000 };
+        ? {
+            deviceId: { exact: selectedMicId },
+            echoCancellation: useEchoCancellation,
+            noiseSuppression: useEchoCancellation,
+            autoGainControl: true,
+            googEchoCancellation: useEchoCancellation,
+            googAutoGainControl: true,
+            googNoiseSuppression: useEchoCancellation,
+            googHighpassFilter: true
+          }
+        : {
+            echoCancellation: useEchoCancellation,
+            noiseSuppression: useEchoCancellation,
+            autoGainControl: true,
+            googEchoCancellation: useEchoCancellation,
+            googAutoGainControl: true,
+            googNoiseSuppression: useEchoCancellation,
+            googHighpassFilter: true
+          };
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
