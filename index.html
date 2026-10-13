@@ -527,27 +527,29 @@
         videoConstraints = { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } };
       }
 
-      // WhatsApp Web & Zoom WebRTC production standard audio constraints
+      // WhatsApp Web / Zoom / Google Meet production standard audio constraints
       const standardAecSettings = useEchoCancellation ? {
         echoCancellation: { ideal: true },
         noiseSuppression: { ideal: true },
-        autoGainControl: { ideal: true },
-        // Mobile Chromium / Chrome Android WebRTC low-level flags
+        autoGainControl: { ideal: false }, // Avoid aggressive pumping and digital clipping
         googEchoCancellation: { ideal: true },
         googEchoCancellation2: { ideal: true },
-        googAutoGainControl: { ideal: true },
-        googAutoGainControl2: { ideal: true },
+        googAutoGainControl: { ideal: false },
+        googAutoGainControl2: { ideal: false },
         googNoiseSuppression: { ideal: true },
         googNoiseSuppression2: { ideal: true },
         googHighpassFilter: { ideal: true },
         googTypingNoiseDetection: { ideal: true },
-        latency: { ideal: 0.01 },
-        channelCount: { ideal: 1 }, // Mono prevents phase cancellation and double-mic feedback loops on smartphones
-        sampleRate: { ideal: 48000 }
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 },
+        sampleSize: { ideal: 16 }
       } : {
         echoCancellation: false,
         noiseSuppression: false,
-        autoGainControl: false
+        autoGainControl: false,
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 },
+        sampleSize: { ideal: 16 }
       };
 
       const audioConstraints = selectedMicId
@@ -722,18 +724,53 @@
       disconnectBtn.disabled = false;
     }
 
+    // Optimize SDP to enforce broadcast studio Opus profile (48kHz, stereo/mono, 128kbps, in-band FEC)
+    function optimizeOpusSdp(sdp) {
+      if (!sdp) return sdp;
+      let lines = sdp.split('\r\n');
+      let opusPayload = null;
+      for (let i = 0; i < lines.length; i++) {
+        const mMatch = lines[i].match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
+        if (mMatch) {
+          opusPayload = mMatch[1];
+          break;
+        }
+      }
+      if (opusPayload) {
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].startsWith(`a=fmtp:${opusPayload}`)) {
+            // Zoom / Google Meet high quality voice params: maxaveragebitrate=128000, stereo=1, useinbandfec=1
+            if (!lines[i].includes('maxaveragebitrate')) {
+              lines[i] += ';maxaveragebitrate=128000;cbr=0;useinbandfec=1';
+            }
+          }
+        }
+      }
+      return lines.join('\r\n');
+    }
+
     function setupCallHandlers(call) {
-      // Optimize RTCPeerConnection audio sender parameters (Zoom / WhatsApp Web pattern)
       if (call.peerConnection) {
+        const pc = call.peerConnection;
+
+        // Intercept SDP to inject broadcast-quality Opus profile
+        const originalSetLocalDescription = pc.setLocalDescription.bind(pc);
+        pc.setLocalDescription = function(desc) {
+          if (desc && desc.sdp) {
+            desc.sdp = optimizeOpusSdp(desc.sdp);
+          }
+          return originalSetLocalDescription(desc);
+        };
+
         try {
-          const senders = call.peerConnection.getSenders();
+          const senders = pc.getSenders();
           senders.forEach(sender => {
             if (sender.track && sender.track.kind === 'audio') {
               const params = sender.getParameters();
               if (params && params.encodings && params.encodings.length > 0) {
-                // Prioritize low-latency speech encoding with full error resilience
-                params.encodings[0].maxBitrate = 64000; // 64kbps clean broadcast speech
+                params.encodings[0].maxBitrate = 128000; // 128kbps high fidelity studio broadcast speech
                 params.encodings[0].priority = 'high';
+                params.encodings[0].networkPriority = 'high';
                 sender.setParameters(params).catch(e => {});
               }
             }
