@@ -351,12 +351,23 @@
           <option value="">Detecting microphones...</option>
         </select>
       </div>
-      <div class="device-col" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.08);">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; text-transform: none;">
-          <input type="checkbox" id="echoCancelToggle" onchange="onEchoCancelToggled()" checked style="width: auto; cursor: pointer;">
-          <span>Echo Cancellation & Noise Reduction (Recommended for Phones / Speakers)</span>
-        </label>
-        <span style="font-size: 0.72rem; color: var(--text-muted);">Uncheck only if using isolated studio headphones</span>
+      <div class="device-col" style="grid-column: span 2; display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; font-weight: 600;">
+            <span>Audio Mode:</span>
+            <select id="audioModeSelect" onchange="onAudioModeChanged()" style="padding: 4px 10px; font-size: 0.82rem; border-radius: 6px; background: #131722; color: #fff; border: 1px solid var(--border); cursor: pointer;">
+              <option value="studio">🎙️ Studio Pure Sound (Headphones / No Filter Clicks)</option>
+              <option value="speakerphone">📱 Phone Speakerphone (AEC Enabled)</option>
+            </select>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-muted); font-size: 0.78rem;">
+            <input type="checkbox" id="noiseReductionToggle" onchange="onAudioModeChanged()" style="width: auto; cursor: pointer;">
+            <span>Mild Background Noise Filter</span>
+          </label>
+        </div>
+        <div id="audioModeDesc" style="font-size: 0.72rem; color: #00d2ff;">
+          * Studio Mode: Full dynamic range, 48kHz uncompressed voice, 0 DSP gating artifacts. (Recommended when using earphones/headphones).
+        </div>
       </div>
     </div>
 
@@ -506,47 +517,27 @@
         localStream = null;
       }
 
-      const useEchoCancellation = document.getElementById('echoCancelToggle').checked;
+      const audioMode = document.getElementById('audioModeSelect').value;
+      const enableNoiseReduction = document.getElementById('noiseReductionToggle').checked;
+      const isSpeakerphone = (audioMode === 'speakerphone');
 
-      // Build video constraint with facingMode mobile awareness
-      let videoConstraints;
-      if (selectedCamId) {
-        // Find if user selected front vs back
-        const chosenOpt = Array.from(cameraSelect.options).find(o => o.value === selectedCamId);
-        const isBack = chosenOpt && /back|rear|trasera|environment/i.test(chosenOpt.text);
-        const isFront = chosenOpt && /front|selfie|frontal|user/i.test(chosenOpt.text);
-
-        if (isBack) {
-          videoConstraints = { deviceId: { exact: selectedCamId }, facingMode: { ideal: 'environment' } };
-        } else if (isFront) {
-          videoConstraints = { deviceId: { exact: selectedCamId }, facingMode: { ideal: 'user' } };
+      const descEl = document.getElementById('audioModeDesc');
+      if (descEl) {
+        if (isSpeakerphone) {
+          descEl.innerText = "* Speakerphone Mode: Acoustic Echo Cancellation (AEC) active for hand-held calls without headphones.";
+          descEl.style.color = '#ffb300';
         } else {
-          videoConstraints = { deviceId: { exact: selectedCamId } };
+          descEl.innerText = "* Studio Mode: Pure 48kHz audio. Zero gating, zero clicks, transparent microphone fidelity (Recommended with headphones).";
+          descEl.style.color = '#00d2ff';
         }
-      } else {
-        videoConstraints = { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } };
       }
 
-      // WhatsApp Web / Zoom / Google Meet production standard audio constraints
-      const standardAecSettings = useEchoCancellation ? {
-        echoCancellation: { ideal: true },
-        noiseSuppression: { ideal: true },
-        autoGainControl: { ideal: false }, // Avoid aggressive pumping and digital clipping
-        googEchoCancellation: { ideal: true },
-        googEchoCancellation2: { ideal: true },
-        googAutoGainControl: { ideal: false },
-        googAutoGainControl2: { ideal: false },
-        googNoiseSuppression: { ideal: true },
-        googNoiseSuppression2: { ideal: true },
-        googHighpassFilter: { ideal: true },
-        googTypingNoiseDetection: { ideal: true },
-        channelCount: { ideal: 1 },
-        sampleRate: { ideal: 48000 },
-        sampleSize: { ideal: 16 }
-      } : {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
+      // Production-tuned constraints: NEVER include googTypingNoiseDetection or aggressive highpass filters
+      // which cause audio clicks, fluttering, and metallic buffer drops.
+      const audioConstraintsConfig = {
+        echoCancellation: isSpeakerphone ? { ideal: true } : false,
+        noiseSuppression: enableNoiseReduction ? { ideal: true } : false,
+        autoGainControl: false, // Keep AGC off to prevent volume pumping and digital clipping
         channelCount: { ideal: 1 },
         sampleRate: { ideal: 48000 },
         sampleSize: { ideal: 16 }
@@ -555,9 +546,9 @@
       const audioConstraints = selectedMicId
         ? {
             deviceId: { exact: selectedMicId },
-            ...standardAecSettings
+            ...audioConstraintsConfig
           }
-        : standardAecSettings;
+        : audioConstraintsConfig;
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
@@ -592,7 +583,7 @@
       }
     }
 
-    async function onEchoCancelToggled() {
+    async function onAudioModeChanged() {
       const camId = cameraSelect.value;
       const micId = micSelect.value;
       await startCameraPreview(camId, micId);
