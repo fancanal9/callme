@@ -356,17 +356,14 @@
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; font-weight: 600;">
             <span>Audio Mode:</span>
             <select id="audioModeSelect" onchange="onAudioModeChanged()" style="padding: 4px 10px; font-size: 0.82rem; border-radius: 6px; background: #131722; color: #fff; border: 1px solid var(--border); cursor: pointer;">
-              <option value="studio">🎙️ Studio Pure Sound (Headphones / No Filter Clicks)</option>
-              <option value="speakerphone">📱 Phone Speakerphone (AEC Enabled)</option>
+              <option value="standard" selected>📞 Standard Voice Call (Recommended: Zoom/Meet APM Engine)</option>
+              <option value="studio">🎙️ High-Fidelity Original Sound (Headphones / External Mic)</option>
+              <option value="noisy">🏢 Noisy Room (Enhanced Suppression)</option>
             </select>
           </label>
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-muted); font-size: 0.78rem;">
-            <input type="checkbox" id="noiseReductionToggle" onchange="onAudioModeChanged()" style="width: auto; cursor: pointer;">
-            <span>Mild Background Noise Filter</span>
-          </label>
         </div>
-        <div id="audioModeDesc" style="font-size: 0.72rem; color: #00d2ff;">
-          * Studio Mode: Full dynamic range, 48kHz uncompressed voice, 0 DSP gating artifacts. (Recommended when using earphones/headphones).
+        <div id="audioModeDesc" style="font-size: 0.72rem; color: #00ff88;">
+          * Standard Voice Call: Full Google WebRTC APM active (AEC3 + AGC2 + Noise Suppression). Crystal-clear speech for phones and laptops.
         </div>
       </div>
     </div>
@@ -518,30 +515,74 @@
       }
 
       const audioMode = document.getElementById('audioModeSelect').value;
-      const enableNoiseReduction = document.getElementById('noiseReductionToggle').checked;
-      const isSpeakerphone = (audioMode === 'speakerphone');
-
       const descEl = document.getElementById('audioModeDesc');
-      if (descEl) {
-        if (isSpeakerphone) {
-          descEl.innerText = "* Speakerphone Mode: Acoustic Echo Cancellation (AEC) active for hand-held calls without headphones.";
-          descEl.style.color = '#ffb300';
-        } else {
-          descEl.innerText = "* Studio Mode: Pure 48kHz audio. Zero gating, zero clicks, transparent microphone fidelity (Recommended with headphones).";
+
+      let audioConstraintsConfig;
+      let targetContentHint = 'speech';
+
+      if (audioMode === 'standard') {
+        // Mode 1: Standard Voice Call (Google Meet / Zoom Default Engine)
+        // Uses native WebRTC Audio Processing Module: AEC3 (acoustic echo cancellation),
+        // AGC2 (digital peak limiter & adaptive speech leveller), and Wiener noise suppression.
+        if (descEl) {
+          descEl.innerText = "* Standard Voice Call: Full Google WebRTC APM active (AEC3 + AGC2 + Noise Suppression). Crystal-clear speech for phones and laptops.";
+          descEl.style.color = '#00ff88';
+        }
+        targetContentHint = 'speech';
+        audioConstraintsConfig = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+          channelCount: 1,
+          sampleRate: 48000
+        };
+      } else if (audioMode === 'studio') {
+        // Mode 2: High-Fidelity Original Sound (Zoom "Original Sound for Musicians")
+        // Disables all browser DSP and instructs OS/browser to bypass VOIP telephony filters.
+        if (descEl) {
+          descEl.innerText = "* High-Fidelity Original Sound: Raw uncompressed 48kHz audio. Pure dynamic range without gating (Requires headphones/external mic).";
           descEl.style.color = '#00d2ff';
         }
+        targetContentHint = 'music';
+        audioConstraintsConfig = {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          googEchoCancellation: false,
+          googEchoCancellation2: false,
+          googNoiseSuppression: false,
+          googNoiseSuppression2: false,
+          googAutoGainControl: false,
+          googAutoGainControl2: false,
+          googHighpassFilter: false,
+          googTypingNoiseDetection: false,
+          channelCount: 1,
+          sampleRate: 48000
+        };
+      } else {
+        // Mode 3: Noisy Room (Enhanced Suppression)
+        if (descEl) {
+          descEl.innerText = "* Noisy Room: Aggressive background noise attenuation and echo protection for environments with fans/traffic.";
+          descEl.style.color = '#ffaa00';
+        }
+        targetContentHint = 'speech';
+        audioConstraintsConfig = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          googEchoCancellation: true,
+          googNoiseSuppression: true,
+          googNoiseSuppression2: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          channelCount: 1,
+          sampleRate: 48000
+        };
       }
-
-      // Production-tuned constraints: NEVER include googTypingNoiseDetection or aggressive highpass filters
-      // which cause audio clicks, fluttering, and metallic buffer drops.
-      const audioConstraintsConfig = {
-        echoCancellation: isSpeakerphone ? { ideal: true } : false,
-        noiseSuppression: enableNoiseReduction ? { ideal: true } : false,
-        autoGainControl: false, // Keep AGC off to prevent volume pumping and digital clipping
-        channelCount: { ideal: 1 },
-        sampleRate: { ideal: 48000 },
-        sampleSize: { ideal: 16 }
-      };
 
       const audioConstraints = selectedMicId
         ? {
@@ -555,6 +596,12 @@
           video: videoConstraints,
           audio: audioConstraints
         });
+
+        const aTrack = localStream.getAudioTracks()[0];
+        if (aTrack && 'contentHint' in aTrack) {
+          aTrack.contentHint = targetContentHint;
+        }
+
         localVideo.srcObject = localStream;
         setupLocalAudioMeter(localStream);
 
@@ -678,6 +725,8 @@
 
     function replaceTracksInCall() {
       if (activeCall && activeCall.peerConnection && localStream) {
+        const audioMode = document.getElementById('audioModeSelect').value;
+        const targetHint = (audioMode === 'studio') ? 'music' : 'speech';
         const senders = activeCall.peerConnection.getSenders();
         const vTrack = localStream.getVideoTracks()[0];
         const aTrack = localStream.getAudioTracks()[0];
@@ -686,6 +735,9 @@
           if (vs) vs.replaceTrack(vTrack);
         }
         if (aTrack) {
+          if ('contentHint' in aTrack) {
+            aTrack.contentHint = targetHint;
+          }
           const as = senders.find(s => s.track && s.track.kind === 'audio');
           if (as) as.replaceTrack(aTrack);
         }
@@ -715,7 +767,7 @@
       disconnectBtn.disabled = false;
     }
 
-    // Optimize SDP to enforce broadcast studio Opus profile (48kHz, stereo/mono, 128kbps, in-band FEC)
+    // Optimize SDP to enforce transparent broadcast studio Opus profile (48kHz, 128kbps, fullband)
     function optimizeOpusSdp(sdp) {
       if (!sdp) return sdp;
       let lines = sdp.split('\r\n');
@@ -730,10 +782,8 @@
       if (opusPayload) {
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].startsWith(`a=fmtp:${opusPayload}`)) {
-            // Zoom / Google Meet high quality voice params: maxaveragebitrate=128000, stereo=1, useinbandfec=1
-            if (!lines[i].includes('maxaveragebitrate')) {
-              lines[i] += ';maxaveragebitrate=128000;cbr=0;useinbandfec=1';
-            }
+            // maxaveragebitrate=128000, stereo=1, sprop-stereo=1, useinbandfec=1
+            lines[i] = `a=fmtp:${opusPayload} minptime=10;useinbandfec=1;maxaveragebitrate=128000;stereo=1;sprop-stereo=1;cbr=0`;
           }
         }
       }
