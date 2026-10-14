@@ -115,11 +115,17 @@
       justify-content: center;
     }
 
+    /* Video element adapts faithfully: fills 16:9 in landscape, pillarboxes cleanly only when vertical/portrait */
     video {
       width: 100%;
       height: 100%;
       object-fit: contain;
       background: #000;
+    }
+
+    /* When video is widescreen 16:9, ensure seamless edge-to-edge fill */
+    video.widescreen-fit {
+      object-fit: cover;
     }
 
     .video-label {
@@ -514,6 +520,20 @@
         localStream = null;
       }
 
+      // Determine camera constraints:
+      // If a specific camera is selected (or when user switches from dropdown), strictly request that deviceId.
+      let videoConstraints = {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: 1.7777777778 }
+      };
+
+      if (selectedCamId) {
+        videoConstraints.deviceId = { exact: selectedCamId };
+      } else {
+        videoConstraints.facingMode = { ideal: 'user' };
+      }
+
       const audioMode = document.getElementById('audioModeSelect').value;
       const descEl = document.getElementById('audioModeDesc');
 
@@ -605,20 +625,38 @@
         localVideo.srcObject = localStream;
         setupLocalAudioMeter(localStream);
 
+        // Auto-detect aspect ratio: if camera resolution is ~16:9, apply widescreen-fit so zero artificial black borders exist
+        localVideo.onloadedmetadata = () => {
+          const vw = localVideo.videoWidth;
+          const vh = localVideo.videoHeight;
+          if (vw > 0 && vh > 0) {
+            const aspect = vw / vh;
+            if (aspect >= 1.65 && aspect <= 1.85) {
+              localVideo.classList.add('widescreen-fit');
+            } else {
+              localVideo.classList.remove('widescreen-fit');
+            }
+          }
+        };
+
         // Get currently active video device ID from stream track
         const activeTrack = localStream.getVideoTracks()[0];
         const activeSettings = activeTrack ? activeTrack.getSettings() : {};
-        const activeDevId = activeSettings.deviceId || selectedCamId;
+        const activeDevId = selectedCamId || activeSettings.deviceId;
 
         await populateDeviceLists(activeDevId, selectedMicId);
         return localStream;
       } catch (err) {
         console.warn("Retrying with relaxed camera constraints:", err);
         try {
-          const fallbackConstraints = selectedCamId 
-            ? { video: { deviceId: selectedCamId }, audio: true }
-            : { video: true, audio: true };
-          localStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          const fallbackVideo = selectedCamId 
+            ? { deviceId: { exact: selectedCamId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            : { width: { ideal: 1920 }, height: { ideal: 1080 } };
+
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: fallbackVideo,
+            audio: audioConstraints
+          });
           localVideo.srcObject = localStream;
           setupLocalAudioMeter(localStream);
           await populateDeviceLists(selectedCamId, selectedMicId);
