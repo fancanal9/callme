@@ -215,16 +215,60 @@
       letter-spacing: 0.5px;
     }
 
-    .controls-panel {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
+    /* Action Buttons: Centered directly below the monitors on PC, under the return monitor on phones */
+    .action-buttons-panel {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
       margin-bottom: 16px;
+      width: 100%;
     }
 
-    .input-group {
-      display: flex;
-      gap: 10px;
+    .btn-connect {
+      background: var(--accent);
+      color: #0b1017;
+      font-weight: 800;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 32px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+      min-width: 180px;
+      text-align: center;
+    }
+
+    .btn-connect:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-disconnect {
+      background: var(--danger);
+      color: #fff;
+      font-weight: 800;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 28px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+      min-width: 140px;
+      text-align: center;
+    }
+
+    .btn-disconnect:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.35 !important;
+      cursor: not-allowed !important;
+      transform: none !important;
     }
 
     input, select {
@@ -240,33 +284,6 @@
 
     input:focus, select:focus {
       border-color: var(--accent);
-    }
-
-    button {
-      background: var(--accent);
-      color: #0b1017;
-      font-weight: 700;
-      border: none;
-      border-radius: 6px;
-      padding: 10px 22px;
-      font-size: 0.95rem;
-      cursor: pointer;
-      transition: background 0.2s;
-      white-space: nowrap;
-    }
-
-    button:hover {
-      background: var(--accent-hover);
-    }
-
-    button.hangup {
-      background: var(--danger);
-      color: #fff;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
     }
 
     .info-bar {
@@ -343,7 +360,15 @@
       </div>
     </div>
 
-    <!-- Device Selectors & Audio Modes -->
+    <!-- Action Buttons Bar: Directly below the monitors (centered on PC, directly under Studio Retorno on phones) -->
+    <div class="action-buttons-panel">
+      <!-- Hidden Studio Room ID so existing connection logic works seamlessly -->
+      <input type="hidden" id="studioRoomId" value="callme-studio-live">
+      <button id="connectBtn" class="btn-connect" onclick="startCall()">Connect to Studio</button>
+      <button id="disconnectBtn" class="btn-disconnect" onclick="hangUp()" disabled>Disconnect</button>
+    </div>
+
+    <!-- Device Selectors & Audio Modes (Positioned below the action buttons) -->
     <div class="device-row">
       <div class="device-col">
         <label for="cameraSelect">Camera Device</label>
@@ -366,17 +391,6 @@
             <option value="noisy">🏢 Noisy Room (Enhanced Suppression)</option>
           </select>
         </label>
-      </div>
-    </div>
-
-    <!-- Connect / Disconnect Bar -->
-    <div class="controls-panel">
-      <div class="input-group">
-        <input type="text" id="studioRoomId" placeholder="Studio Room ID (e.g. callme-studio-live)" value="callme-studio-live">
-      </div>
-      <div style="display: flex; gap: 8px;">
-        <button id="connectBtn" onclick="startCall()">Connect to Studio</button>
-        <button id="disconnectBtn" class="hangup" onclick="hangUp()" disabled>Disconnect</button>
       </div>
     </div>
 
