@@ -613,19 +613,38 @@
       try {
         const targetStudioId = document.getElementById('studioRoomId').value.trim();
         if (!targetStudioId) return;
-        const regConn = peer.connect(targetStudioId);
-        regConn.on('open', () => {
-          regConn.send({
-            type: 'guest_presence',
-            guestId: peer.id,
-            timestamp: Date.now()
+        const isMob = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const deviceType = isMob ? 'Mobile' : 'PC';
+
+        const sendPresence = (conn) => {
+          try {
+            conn.send({
+              type: 'guest_presence',
+              guestId: peer.id,
+              device: deviceType,
+              timestamp: Date.now()
+            });
+          } catch(e){}
+        };
+
+        if (studioDataConn && studioDataConn.open) {
+          sendPresence(studioDataConn);
+        } else {
+          const regConn = peer.connect(targetStudioId);
+          regConn.on('open', () => {
+            sendPresence(regConn);
+            setupStudioDataConn(regConn);
           });
-          setupStudioDataConn(regConn);
-        });
+        }
       } catch (e) {
         console.warn("Could not announce presence to studio:", e);
       }
     }
+
+    // Keep presence alive every 30 seconds
+    setInterval(() => {
+      announcePresenceToStudio();
+    }, 30000);
 
     // Attach data connection handlers to receive operator signals (declined, disconnected, etc.)
     function setupStudioDataConn(conn) {
@@ -1243,6 +1262,17 @@
     window.addEventListener('DOMContentLoaded', async () => {
       await startCameraPreview();
       initPeer();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (studioDataConn && studioDataConn.open && peer) {
+        try {
+          studioDataConn.send({ type: 'guest_leaving', guestId: peer.id });
+        } catch(e){}
+      }
+      if (peer) {
+        try { peer.destroy(); } catch(e){}
+      }
     });
   </script>
 </body>
