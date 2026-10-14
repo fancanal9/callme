@@ -215,32 +215,39 @@
       letter-spacing: 0.5px;
     }
 
-    /* Action Buttons: Centered directly below the monitors on PC, under the return monitor on phones */
+    /* Action Buttons: Positioned directly below the monitors, identical button width, center seam aligned with monitors seam */
     .action-buttons-panel {
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 16px;
+      gap: 16px; /* Exactly matches .video-grid gap (16px) */
       margin-bottom: 16px;
       width: 100%;
+    }
+
+    .btn-action {
+      flex: 0 1 200px;
+      width: 200px;
+      height: 48px;
+      font-weight: 800;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
 
     .btn-connect {
       background: var(--accent);
       color: #0b1017;
-      font-weight: 800;
-      border: none;
-      border-radius: 6px;
-      padding: 12px 32px;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-      white-space: nowrap;
-      min-width: 180px;
-      text-align: center;
     }
 
-    .btn-connect:hover {
+    .btn-connect:hover:not(:disabled) {
       background: var(--accent-hover);
       transform: translateY(-1px);
     }
@@ -248,16 +255,6 @@
     .btn-disconnect {
       background: var(--danger);
       color: #fff;
-      font-weight: 800;
-      border: none;
-      border-radius: 6px;
-      padding: 12px 28px;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      white-space: nowrap;
-      min-width: 140px;
-      text-align: center;
     }
 
     .btn-disconnect:hover:not(:disabled) {
@@ -364,8 +361,8 @@
     <div class="action-buttons-panel">
       <!-- Hidden Studio Room ID so existing connection logic works seamlessly -->
       <input type="hidden" id="studioRoomId" value="callme-studio-live">
-      <button id="connectBtn" class="btn-connect" onclick="startCall()">Connect to Studio</button>
-      <button id="disconnectBtn" class="btn-disconnect" onclick="hangUp()" disabled>Disconnect</button>
+      <button id="connectBtn" class="btn-action btn-connect" onclick="startCall()">Connect</button>
+      <button id="disconnectBtn" class="btn-action btn-disconnect" onclick="confirmDisconnect()" disabled>Disconnect</button>
     </div>
 
     <!-- Device Selectors & Audio Modes (Positioned below the action buttons) -->
@@ -882,6 +879,12 @@
         console.error("Call error:", err);
         hangUp();
       });
+    }
+
+    function confirmDisconnect() {
+      if (confirm("Are you sure you want to disconnect from the broadcast?")) {
+        hangUp();
+      }
     }
 
     function hangUp() {
