@@ -243,12 +243,13 @@
     }
 
     .btn-connect {
-      background: var(--accent);
-      color: #0b1017;
+      background: #00875a;
+      border: 1px solid #00a86b;
+      color: #fff;
     }
 
     .btn-connect:hover:not(:disabled) {
-      background: var(--accent-hover);
+      background: #00a86b;
       transform: translateY(-1px);
     }
 
@@ -317,6 +318,140 @@
 
     .status-dot.connecting {
       background: #f7b731;
+    }
+
+    /* GUEST ALERT MODAL (Call Declined / Studio Disconnected) */
+    .guest-alert-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(8, 12, 18, 0.88);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: modalFadeIn 0.25s ease;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .guest-alert-card {
+      background: #141a26;
+      border: 2px solid var(--accent);
+      box-shadow: 0 12px 36px rgba(0, 210, 255, 0.35);
+      border-radius: 10px;
+      padding: 24px 28px;
+      text-align: center;
+      max-width: 420px;
+      width: 88%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      box-sizing: border-box;
+    }
+
+    .guest-alert-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(0, 210, 255, 0.15);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .guest-alert-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+
+    .guest-alert-msg {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .btn-guest-alert-ok {
+      min-width: 130px;
+      height: 42px;
+      background: #00875a;
+      border: 1px solid #00a86b;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      margin-top: 6px;
+    }
+
+    .btn-guest-alert-ok:hover {
+      background: #00a86b;
+      transform: translateY(-1px);
+    }
+
+    /* INCOMING STUDIO CALL PROMPT MODAL (Accept / Decline) */
+    .guest-prompt-actions {
+      display: flex;
+      gap: 14px;
+      margin-top: 8px;
+      width: 100%;
+    }
+
+    .btn-prompt-accept {
+      flex: 1;
+      height: 44px;
+      background: #00875a;
+      border: 1px solid #00a86b;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-prompt-accept:hover {
+      background: #00a86b;
+      transform: translateY(-1px);
+    }
+
+    .btn-prompt-decline {
+      flex: 1;
+      height: 44px;
+      background: #b01a35;
+      border: 1px solid #d32f2f;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-prompt-decline:hover {
+      background: #d32f2f;
+      transform: translateY(-1px);
     }
   </style>
 </head>
@@ -403,10 +538,45 @@
     </div>
   </div>
 
+  <!-- Guest Alert / Notification Modal -->
+  <div id="guestAlertModal" class="guest-alert-modal">
+    <div class="guest-alert-card">
+      <div class="guest-alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00d2ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <div class="guest-alert-title" id="guestAlertTitle">NOTICE</div>
+      <div class="guest-alert-msg" id="guestAlertMsg">Notification message</div>
+      <button class="btn-guest-alert-ok" onclick="closeGuestAlert()">OK</button>
+    </div>
+  </div>
+
+  <!-- Incoming Studio Call Modal (Prompting Guest to Accept or Decline) -->
+  <div id="guestIncomingCallModal" class="guest-alert-modal">
+    <div class="guest-alert-card">
+      <div class="guest-alert-icon" style="animation: ringPulse 1.2s infinite;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00d2ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+      </div>
+      <div class="guest-alert-title">INCOMING STUDIO CALL</div>
+      <div class="guest-alert-msg" id="guestIncomingCallMsg">The TV Studio Operator is calling you to connect On Air. Do you want to connect?</div>
+      <div class="guest-prompt-actions">
+        <button class="btn-prompt-accept" onclick="acceptStudioCall()">YES / CONNECT</button>
+        <button class="btn-prompt-decline" onclick="declineStudioCall()">DECLINE</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let peer = null;
     let localStream = null;
     let activeCall = null;
+    let studioDataConn = null;
+    let callWasOnAir = false;
 
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
@@ -418,6 +588,114 @@
     const onAirBadge = document.getElementById('onAirBadge');
     const cameraSelect = document.getElementById('cameraSelect');
     const micSelect = document.getElementById('micSelect');
+    const guestAlertModal = document.getElementById('guestAlertModal');
+    const guestAlertTitle = document.getElementById('guestAlertTitle');
+    const guestAlertMsg = document.getElementById('guestAlertMsg');
+
+    // UI Alert Modal helper functions
+    function showGuestAlert(title, message) {
+      if (guestAlertTitle) guestAlertTitle.innerText = title;
+      if (guestAlertMsg) guestAlertMsg.innerText = message;
+      if (guestAlertModal) guestAlertModal.style.display = 'flex';
+    }
+
+    function closeGuestAlert() {
+      if (guestAlertModal) guestAlertModal.style.display = 'none';
+    }
+
+    let pendingStudioCall = null;
+    const guestIncomingCallModal = document.getElementById('guestIncomingCallModal');
+    const guestIncomingCallMsg = document.getElementById('guestIncomingCallMsg');
+
+    // Announce guest presence to studio room so the operator knows which guest is currently online
+    function announcePresenceToStudio() {
+      if (!peer || !peer.id) return;
+      try {
+        const targetStudioId = document.getElementById('studioRoomId').value.trim();
+        if (!targetStudioId) return;
+        const regConn = peer.connect(targetStudioId);
+        regConn.on('open', () => {
+          regConn.send({
+            type: 'guest_presence',
+            guestId: peer.id,
+            timestamp: Date.now()
+          });
+          setupStudioDataConn(regConn);
+        });
+      } catch (e) {
+        console.warn("Could not announce presence to studio:", e);
+      }
+    }
+
+    // Attach data connection handlers to receive operator signals (declined, disconnected, etc.)
+    function setupStudioDataConn(conn) {
+      studioDataConn = conn;
+      conn.on('data', (data) => {
+        if (!data) return;
+        if (data.type === 'call_declined') {
+          hangUp(false);
+          showGuestAlert("CALL DECLINED", "The studio operator has declined your incoming call.");
+        } else if (data.type === 'operator_disconnected') {
+          hangUp(false);
+          showGuestAlert("DISCONNECTED", "You have been disconnected from the studio.");
+        }
+      });
+      conn.on('close', () => {
+        if (studioDataConn === conn) studioDataConn = null;
+      });
+    }
+
+    // Guest prompt actions when Studio calls the guest
+    async function acceptStudioCall() {
+      if (guestIncomingCallModal) guestIncomingCallModal.style.display = 'none';
+      if (!pendingStudioCall) return;
+
+      if (!localStream) {
+        await startCameraPreview();
+      }
+
+      callWasOnAir = true;
+      activeCall = pendingStudioCall;
+      pendingStudioCall = null;
+
+      activeCall.answer(localStream);
+      setupCallHandlers(activeCall);
+
+      statusText.innerText = "ON AIR (Connected to Studio)";
+      statusDot.className = "status-dot connected";
+      onAirBadge.style.display = "inline-block";
+      connectBtn.disabled = true;
+      disconnectBtn.disabled = false;
+    }
+
+    function declineStudioCall() {
+      if (guestIncomingCallModal) guestIncomingCallModal.style.display = 'none';
+
+      if (pendingStudioCall) {
+        const callerPeer = pendingStudioCall.peer;
+        try {
+          if (studioDataConn && studioDataConn.peer === callerPeer && studioDataConn.open) {
+            studioDataConn.send({ type: 'guest_call_declined', callerId: (peer ? peer.id : 'Guest') });
+          } else {
+            const declConn = peer.connect(callerPeer);
+            declConn.on('open', () => {
+              declConn.send({ type: 'guest_call_declined', callerId: (peer ? peer.id : 'Guest') });
+              setTimeout(() => declConn.close(), 1000);
+            });
+          }
+        } catch(e){}
+
+        setTimeout(() => {
+          try { if (pendingStudioCall) pendingStudioCall.close(); } catch(e){}
+          pendingStudioCall = null;
+        }, 350);
+      }
+
+      statusText.innerText = "Ready to connect to Studio";
+      statusDot.className = "status-dot";
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+    }
 
     // 1. Initialize Peer Broker
     function initPeer() {
@@ -438,6 +716,12 @@
       peer.on('open', (id) => {
         myPeerIdEl.innerText = id;
         statusText.innerText = "Ready to connect to Studio";
+        // Notify the studio app that this guest is active and available
+        announcePresenceToStudio();
+      });
+
+      peer.on('connection', (conn) => {
+        setupStudioDataConn(conn);
       });
 
       peer.on('disconnected', () => {
@@ -462,11 +746,35 @@
         disconnectBtn.disabled = true;
       });
 
+      // Handle call initiated by the TV Studio Operator to this guest
       peer.on('call', async (incomingCall) => {
-        if (!localStream) await startCameraPreview();
-        activeCall = incomingCall;
-        incomingCall.answer(localStream);
-        setupCallHandlers(incomingCall);
+        console.log("Incoming call from Studio operator:", incomingCall.peer);
+        
+        // If already in an active on-air call, ignore/decline
+        if (activeCall) {
+          try {
+            const rejectConn = peer.connect(incomingCall.peer);
+            rejectConn.on('open', () => {
+              rejectConn.send({ type: 'guest_call_declined', reason: 'busy' });
+              setTimeout(() => { rejectConn.close(); incomingCall.close(); }, 500);
+            });
+          } catch(e) {
+            try { incomingCall.close(); } catch(err){}
+          }
+          return;
+        }
+
+        pendingStudioCall = incomingCall;
+
+        if (guestIncomingCallMsg) {
+          guestIncomingCallMsg.innerText = `The TV Studio Operator is calling you to connect On Air. Do you want to connect?`;
+        }
+        if (guestIncomingCallModal) {
+          guestIncomingCallModal.style.display = 'flex';
+        }
+
+        statusText.innerText = "RINGING - Incoming call from Studio...";
+        statusDot.className = "status-dot connecting";
       });
     }
 
@@ -787,8 +1095,17 @@
         await startCameraPreview();
       }
 
+      callWasOnAir = false;
       statusText.innerText = "Calling Studio (Ringing / Waiting for Operator)...";
       statusDot.className = "status-dot connecting";
+
+      // Connect signaling data connection to studio operator
+      try {
+        const conn = peer.connect(targetStudioId);
+        setupStudioDataConn(conn);
+      } catch (err) {
+        console.warn("Could not open data channel to studio:", err);
+      }
 
       const call = peer.call(targetStudioId, localStream);
       activeCall = call;
@@ -851,6 +1168,7 @@
       }
 
       call.on('stream', (remoteStream) => {
+        callWasOnAir = true;
         remoteVideo.srcObject = remoteStream;
         setupRemoteAudioMeter(remoteStream);
 
@@ -874,20 +1192,34 @@
         onAirBadge.style.display = "inline-block";
       });
 
-      call.on('close', () => hangUp());
+      call.on('close', () => {
+        const wasOnAir = callWasOnAir;
+        hangUp(false);
+        if (!wasOnAir) {
+          // If the studio operator declined while ringing before sending media
+          showGuestAlert("CALL DECLINED", "The studio operator has declined your incoming call.");
+        }
+      });
+
       call.on('error', (err) => {
         console.error("Call error:", err);
-        hangUp();
+        hangUp(false);
       });
     }
 
     function confirmDisconnect() {
       if (confirm("Are you sure you want to disconnect from the broadcast?")) {
-        hangUp();
+        hangUp(true);
       }
     }
 
-    function hangUp() {
+    function hangUp(userInitiated = false) {
+      if (userInitiated && studioDataConn && studioDataConn.open) {
+        try {
+          studioDataConn.send({ type: 'guest_disconnected', callerId: (peer ? peer.id : 'Remote Guest') });
+        } catch (e) {}
+      }
+
       if (activeCall) {
         try { activeCall.close(); } catch(e){}
         activeCall = null;
@@ -899,7 +1231,8 @@
       const remoteFill = document.getElementById('remoteMeterFill');
       if (remoteFill) remoteFill.style.width = '0%';
 
-      statusText.innerText = "Call ended";
+      callWasOnAir = false;
+      statusText.innerText = "Ready to connect to Studio";
       statusDot.className = "status-dot";
       onAirBadge.style.display = "none";
       connectBtn.disabled = false;
