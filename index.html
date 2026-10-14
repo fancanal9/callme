@@ -357,20 +357,15 @@
           <option value="">Detecting microphones...</option>
         </select>
       </div>
-      <div class="device-col" style="grid-column: span 2; display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; font-weight: 600;">
-            <span>Audio Mode:</span>
-            <select id="audioModeSelect" onchange="onAudioModeChanged()" style="padding: 4px 10px; font-size: 0.82rem; border-radius: 6px; background: #131722; color: #fff; border: 1px solid var(--border); cursor: pointer;">
-              <option value="standard" selected>📞 Standard Voice Call (Recommended: Zoom/Meet APM Engine)</option>
-              <option value="studio">🎙️ High-Fidelity Original Sound (Headphones / External Mic)</option>
-              <option value="noisy">🏢 Noisy Room (Enhanced Suppression)</option>
-            </select>
-          </label>
-        </div>
-        <div id="audioModeDesc" style="font-size: 0.72rem; color: #00ff88;">
-          * Standard Voice Call: Full Google WebRTC APM active (AEC3 + AGC2 + Noise Suppression). Crystal-clear speech for phones and laptops.
-        </div>
+      <div class="device-col" style="grid-column: span 2; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; font-weight: 600; width: 100%;">
+          <span style="white-space: nowrap;">Audio Mode:</span>
+          <select id="audioModeSelect" onchange="onAudioModeChanged()" style="flex: 1; padding: 5px 10px; font-size: 0.82rem; border-radius: 6px; background: #131722; color: #fff; border: 1px solid var(--border); cursor: pointer;">
+            <option value="standard" selected>📞 Standard Voice Call (Recommended: Zoom/Meet APM Engine)</option>
+            <option value="studio">🎙️ High-Fidelity Original Sound (Headphones / External Mic)</option>
+            <option value="noisy">🏢 Noisy Room (Enhanced Suppression)</option>
+          </select>
+        </label>
       </div>
     </div>
 
@@ -535,7 +530,6 @@
       }
 
       const audioMode = document.getElementById('audioModeSelect').value;
-      const descEl = document.getElementById('audioModeDesc');
 
       let audioConstraintsConfig;
       let targetContentHint = 'speech';
@@ -544,10 +538,6 @@
         // Mode 1: Standard Voice Call (Google Meet / Zoom Default Engine)
         // Uses native WebRTC Audio Processing Module: AEC3 (acoustic echo cancellation),
         // AGC2 (digital peak limiter & adaptive speech leveller), and Wiener noise suppression.
-        if (descEl) {
-          descEl.innerText = "* Standard Voice Call: Full Google WebRTC APM active (AEC3 + AGC2 + Noise Suppression). Crystal-clear speech for phones and laptops.";
-          descEl.style.color = '#00ff88';
-        }
         targetContentHint = 'speech';
         audioConstraintsConfig = {
           echoCancellation: true,
@@ -563,10 +553,6 @@
       } else if (audioMode === 'studio') {
         // Mode 2: High-Fidelity Original Sound (Zoom "Original Sound for Musicians")
         // Disables all browser DSP and instructs OS/browser to bypass VOIP telephony filters.
-        if (descEl) {
-          descEl.innerText = "* High-Fidelity Original Sound: Raw uncompressed 48kHz audio. Pure dynamic range without gating (Requires headphones/external mic).";
-          descEl.style.color = '#00d2ff';
-        }
         targetContentHint = 'music';
         audioConstraintsConfig = {
           echoCancellation: false,
@@ -585,10 +571,6 @@
         };
       } else {
         // Mode 3: Noisy Room (Enhanced Suppression)
-        if (descEl) {
-          descEl.innerText = "* Noisy Room: Aggressive background noise attenuation and echo protection for environments with fans/traffic.";
-          descEl.style.color = '#ffaa00';
-        }
         targetContentHint = 'speech';
         audioConstraintsConfig = {
           echoCancellation: true,
