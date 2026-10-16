@@ -670,6 +670,8 @@
         } else if (data.type === 'operator_disconnected') {
           hangUp(false);
           showGuestAlert("DISCONNECTED", "You have been disconnected from the studio.");
+        } else if (data.type === 'studio_message') {
+          showGuestAlert("MESSAGE FROM STUDIO", data.text || "Producer cue from studio.");
         } else if (data.type === 'studio_discovery_ping') {
           announcePresenceToStudio();
         }
