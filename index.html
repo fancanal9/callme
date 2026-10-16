@@ -640,10 +640,13 @@
         if (studioDataConn && studioDataConn.open) {
           sendPresence(studioDataConn);
         } else {
-          const regConn = peer.connect(targetStudioId);
+          const regConn = peer.connect(targetStudioId, { reliable: true });
           regConn.on('open', () => {
             sendPresence(regConn);
             setupStudioDataConn(regConn);
+          });
+          regConn.on('error', (err) => {
+            console.warn("Studio registration connection error:", err);
           });
         }
       } catch (e) {
@@ -651,10 +654,10 @@
       }
     }
 
-    // Keep presence alive every 30 seconds
+    // Keep presence alive every 10 seconds so studio list is always fresh
     setInterval(() => {
       announcePresenceToStudio();
-    }, 30000);
+    }, 10000);
 
     // Attach data connection handlers to receive operator signals (declined, disconnected, etc.)
     function setupStudioDataConn(conn) {
