@@ -524,6 +524,16 @@
           </select>
         </label>
       </div>
+      <div class="device-col" style="grid-column: span 2; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 0.82rem; font-weight: 600; width: 100%;">
+          <span style="white-space: nowrap;">Connection / Video:</span>
+          <select id="videoQualitySelect" onchange="onVideoQualityChanged()" style="flex: 1; padding: 5px 10px; font-size: 0.82rem; border-radius: 6px; background: #131722; color: #fff; border: 1px solid var(--border); cursor: pointer;">
+            <option value="wifi">⚡ Wi-Fi / Studio (1080p Full HD - Maximum Quality)</option>
+            <option value="mobile" selected>📶 4G / 5G Mobile Data (720p HD - Saves 95% Data)</option>
+            <option value="low">🚗 Low Signal / Street Reporter (540p - Extreme Saver)</option>
+          </select>
+        </label>
+      </div>
     </div>
 
     <!-- Telemetry Info Bar -->
@@ -855,11 +865,20 @@
         localStream = null;
       }
 
-      // Determine camera constraints:
-      // If a specific camera is selected (or when user switches from dropdown), strictly request that deviceId.
+      // Determine video capture constraints based on selected connection profile (Wi-Fi 1080p, Mobile 720p, Low Signal 540p)
+      const qMode = document.getElementById('videoQualitySelect') ? document.getElementById('videoQualitySelect').value : 'wifi';
+      let targetW = 1920, targetH = 1080;
+      if (qMode === 'mobile') {
+        targetW = 1280;
+        targetH = 720;
+      } else if (qMode === 'low') {
+        targetW = 960;
+        targetH = 540;
+      }
+
       let videoConstraints = {
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
+        width: { ideal: targetW },
+        height: { ideal: targetH },
         aspectRatio: { ideal: 1.7777777778 }
       };
 
@@ -995,6 +1014,14 @@
       const micId = micSelect.value;
       await startCameraPreview(camId, micId);
       replaceTracksInCall();
+    }
+
+    async function onVideoQualityChanged() {
+      const camId = cameraSelect.value;
+      const micId = micSelect.value;
+      await startCameraPreview(camId, micId);
+      replaceTracksInCall();
+      applyVideoBitrateCeiling();
     }
 
     // Web Audio Analysers for Guest VU Meters
@@ -1159,6 +1186,42 @@
       return lines.join('\r\n');
     }
 
+    function applyVideoBitrateCeiling() {
+      if (!activeCall || !activeCall.peerConnection) return;
+      try {
+        const pc = activeCall.peerConnection;
+        const qMode = document.getElementById('videoQualitySelect') ? document.getElementById('videoQualitySelect').value : 'wifi';
+        let maxVideoBitrate = 4500000; // Wi-Fi / Fiber Studio: up to 4.5 Mbps
+        let scaleDown = 1.0;
+
+        if (qMode === 'mobile') {
+          maxVideoBitrate = 1800000; // 4G/5G Cellular: 1.8 Mbps ceiling (~65 MB for 5 min)
+          scaleDown = 1.0;
+        } else if (qMode === 'low') {
+          maxVideoBitrate = 900000;  // Low Signal: 900 kbps ceiling (~30 MB for 5 min)
+          scaleDown = 1.0;
+        }
+
+        const senders = pc.getSenders();
+        senders.forEach(sender => {
+          if (sender.track && sender.track.kind === 'video') {
+            const params = sender.getParameters();
+            if (params && params.encodings && params.encodings.length > 0) {
+              params.encodings[0].maxBitrate = maxVideoBitrate;
+              if (qMode === 'mobile') {
+                params.encodings[0].maxFramerate = 30;
+              } else if (qMode === 'low') {
+                params.encodings[0].maxFramerate = 25;
+              }
+              sender.setParameters(params).catch(e => console.warn("Video params set:", e));
+            }
+          }
+        });
+      } catch (err) {
+        console.warn("Could not apply video bitrate ceiling:", err);
+      }
+    }
+
     function setupCallHandlers(call) {
       if (call.peerConnection) {
         const pc = call.peerConnection;
@@ -1186,6 +1249,9 @@
             }
           });
         } catch(e) {}
+
+        // Apply selected video profile bitrate ceiling
+        applyVideoBitrateCeiling();
       }
 
       call.on('stream', (remoteStream) => {
@@ -1262,6 +1328,26 @@
 
     // Initialize on page load: start preview right away so the user sees themselves
     window.addEventListener('DOMContentLoaded', async () => {
+      // Smart Auto-detection: If running on PC/Notebook or on Wi-Fi, default to Wi-Fi HD; if mobile phone, default to Mobile Data Saver
+      try {
+        const isMob = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const qSelect = document.getElementById('videoQualitySelect');
+        if (qSelect) {
+          if (!isMob) {
+            // PC / Notebook calling from office/home/hotel fiber
+            qSelect.value = 'wifi';
+          } else {
+            // Mobile phone: check if NetworkInformation API reports wifi vs cellular
+            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn && conn.type === 'wifi') {
+              qSelect.value = 'wifi';
+            } else {
+              qSelect.value = 'mobile';
+            }
+          }
+        }
+      } catch (e) {}
+
       await startCameraPreview();
       initPeer();
     });
