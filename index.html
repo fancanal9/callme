@@ -625,6 +625,7 @@
         if (!targetStudioId) return;
         const isMob = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const deviceType = isMob ? 'Mobile' : 'PC';
+        const qMode = document.getElementById('videoQualitySelect') ? document.getElementById('videoQualitySelect').value : (isMob ? 'mobile' : 'wifi');
 
         const sendPresence = (conn) => {
           try {
@@ -632,6 +633,7 @@
               type: 'guest_presence',
               guestId: peer.id,
               device: deviceType,
+              qualityMode: qMode,
               timestamp: Date.now()
             });
           } catch(e){}
@@ -1027,6 +1029,14 @@
       await startCameraPreview(camId, micId);
       replaceTracksInCall();
       applyVideoBitrateCeiling();
+
+      // Notify Studio of quality mode change on the fly so return feed adapts instantly
+      const qMode = document.getElementById('videoQualitySelect') ? document.getElementById('videoQualitySelect').value : 'wifi';
+      if (studioDataConn && studioDataConn.open) {
+        try {
+          studioDataConn.send({ type: 'guest_quality_changed', qualityMode: qMode });
+        } catch(e){}
+      }
     }
 
     // Web Audio Analysers for Guest VU Meters
